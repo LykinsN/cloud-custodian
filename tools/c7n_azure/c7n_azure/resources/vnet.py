@@ -22,4 +22,4 @@ class Vnet(QueryResourceManager):
     class resource_type(object):
         service = 'azure.mgmt.network'
         client = 'NetworkManagementClient'
-        ops = 'virtual_networks'
+        enum_spec = ('virtual_networks', 'list')
