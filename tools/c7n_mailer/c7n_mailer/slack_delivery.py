@@ -19,7 +19,6 @@ import six
 from c7n_mailer.email_delivery import EmailDelivery
 from c7n_mailer.ldap_lookup import Redis
 from c7n_mailer.utils import kms_decrypt, get_rendered_jinja
-from slackclient import SlackClient
 
 
 class SlackDelivery(object):
@@ -27,7 +26,6 @@ class SlackDelivery(object):
     def __init__(self, config, session, logger):
         if config.get('slack_token'):
             config['slack_token'] = kms_decrypt(config, logger, session, 'slack_token')
-            self.client = SlackClient(config['slack_token'])
         self.caching = self.cache_factory(config, config.get('cache_engine', None))
         self.config = config
         self.logger = logger
@@ -42,13 +40,19 @@ class SlackDelivery(object):
             return None
 
     def get_to_addrs_slack_messages_map(self, sqs_message):
-        to_addrs_to_resources_map = \
-            self.email_handler.get_email_to_addrs_to_resources_map(sqs_message)
+
+        resource_list = []
+        for resource in sqs_message['resources']:
+            resource_list.append(resource)
+
         slack_messages = {}
 
         # Check for Slack targets in 'to' action and render appropriate template.
         for target in sqs_message.get('action', ()).get('to'):
             if target == 'slack://owners':
+
+                to_addrs_to_resources_map = \
+                    self.email_handler.get_email_to_addrs_to_resources_map(sqs_message)
                 for to_addrs, resources in six.iteritems(to_addrs_to_resources_map):
 
                     resolved_addrs = self.retrieve_user_im(list(to_addrs))
@@ -66,7 +70,7 @@ class SlackDelivery(object):
                 webhook_target = self.config.get('slack_webhook')
                 slack_messages[webhook_target] = get_rendered_jinja(
                     target.split('slack://webhook/#', 1)[1], sqs_message,
-                    to_addrs_to_resources_map.values()[0],
+                    resource_list,
                     self.logger, 'slack_template', 'slack_default')
                 self.logger.debug(
                     "Generating message for webhook %s." % self.config.get('slack_webhook'))
@@ -75,13 +79,13 @@ class SlackDelivery(object):
                 resolved_addrs = self.retrieve_user_im([target.split('slack://', 1)[1]])
                 for address, slack_target in resolved_addrs.iteritems():
                     slack_messages[address] = get_rendered_jinja(
-                        slack_target, sqs_message, to_addrs_to_resources_map.values()[0],
+                        slack_target, sqs_message, resource_list,
                         self.logger, 'slack_template', 'slack_default')
             elif target.startswith('slack://#'):
                 resolved_addrs = target.split('slack://#', 1)[1]
                 slack_messages[resolved_addrs] = get_rendered_jinja(
                     resolved_addrs, sqs_message,
-                    to_addrs_to_resources_map.values()[0],
+                    resource_list,
                     self.logger, 'slack_template', 'slack_default')
 
                 self.logger.debug("Generating message for specified Slack channel.")
