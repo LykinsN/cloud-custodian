@@ -134,7 +134,7 @@ class ValuesFrom(object):
         if format == 'json':
             data = json.loads(contents)
             if 'expr' in self.data:
-                return jmespath.search(self.data['expr'], data)
+                return jmespath.search(self.data['expr'], data) or ''
         elif format == 'csv' or format == 'csv2dict':
             data = csv.reader(io.StringIO(contents))
             if format == 'csv2dict':
@@ -144,7 +144,7 @@ class ValuesFrom(object):
                     return [d[self.data['expr']] for d in data]
                 data = list(data)
             if 'expr' in self.data:
-                return jmespath.search(self.data['expr'], data)
+                return jmespath.search(self.data['expr'], data) or ''
             return data
         elif format == 'txt':
             return [s.strip() for s in io.StringIO(contents).readlines()]
